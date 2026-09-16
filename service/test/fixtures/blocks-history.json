@@ -1,0 +1,9 @@
+{
+  "blocks": [
+    { "isGap": true, "isActive": false, "totalTokens": 0 },
+    { "isGap": false, "isActive": false, "totalTokens": 21123327 },
+    { "isGap": false, "isActive": false, "totalTokens": 45938431 },
+    { "isGap": false, "isActive": false, "totalTokens": 3360556 },
+    { "isGap": false, "isActive": true, "totalTokens": 78681205 }
+  ]
+}

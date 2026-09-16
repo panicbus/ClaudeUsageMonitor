@@ -1,0 +1,22 @@
+{
+  "totals": {
+    "cacheCreationTokens": 15446265,
+    "cacheReadTokens": 1367913022,
+    "inputTokens": 6278,
+    "outputTokens": 2118763,
+    "totalCost": 369.6250092500003,
+    "totalTokens": 1385484328
+  },
+  "weekly": [
+    {
+      "agent": "all",
+      "cacheCreationTokens": 15446265,
+      "cacheReadTokens": 1367913022,
+      "inputTokens": 6278,
+      "outputTokens": 2118763,
+      "period": "2026-09-07",
+      "totalCost": 369.6250092500003,
+      "totalTokens": 1385484328
+    }
+  ]
+}

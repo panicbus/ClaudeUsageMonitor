@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.pio/
+.pioenvs/
+sdkconfig
+sdkconfig.defaults.local
+managed_components/
+.vscode/
+*.log
+.DS_Store

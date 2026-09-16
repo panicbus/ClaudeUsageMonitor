@@ -1,0 +1,22 @@
+menu "Claude Usage Monitor Configuration"
+
+config WIFI_SSID
+    string "WiFi SSID"
+    default ""
+    help
+        SSID of the WiFi network to connect to.
+
+config WIFI_PASSWORD
+    string "WiFi Password"
+    default ""
+    help
+        WPA2 password for the WiFi network above.
+
+config USAGE_SERVICE_URL
+    string "Usage service URL"
+    default "http://192.168.4.34:4317/usage"
+    help
+        Full URL of the claude-usage-monitor service's /usage endpoint on
+        the LAN. Update this if the dev machine's LAN IP changes.
+
+endmenu

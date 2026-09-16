@@ -1,0 +1,32 @@
+{
+  "blocks": [
+    {
+      "actualEndTime": "2026-09-13T06:46:27.112Z",
+      "burnRate": {
+        "costPerHour": 6.879802060851776,
+        "tokensPerMinute": 219498.8319343074,
+        "tokensPerMinuteForIndicator": 3229.760160298875
+      },
+      "costUSD": 0.8164070000000001,
+      "endTime": "2026-09-13T11:00:00.000Z",
+      "entries": 20,
+      "id": "2026-09-13T06:00:00.000Z",
+      "isActive": true,
+      "isGap": false,
+      "models": ["claude-sonnet-5"],
+      "projection": {
+        "remainingMinutes": 253,
+        "totalCost": 29.83,
+        "totalTokens": 57096043
+      },
+      "startTime": "2026-09-13T06:00:00.000Z",
+      "tokenCounts": {
+        "cacheCreationInputTokens": 73368,
+        "cacheReadInputTokens": 1466475,
+        "inputTokens": 40,
+        "outputTokens": 22956
+      },
+      "totalTokens": 1562839
+    }
+  ]
+}

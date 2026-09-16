@@ -1,0 +1,11 @@
+{
+  "name": "claude-usage-monitor",
+  "private": true,
+  "workspaces": [
+    "service",
+    "shared"
+  ],
+  "scripts": {
+    "test": "npm test --workspace=service"
+  }
+}

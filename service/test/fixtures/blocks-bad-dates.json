@@ -1,0 +1,10 @@
+{
+  "blocks": [
+    {
+      "startTime": "2026-09-13T06:00:00.000Z",
+      "endTime": "not-a-real-date",
+      "isActive": true,
+      "totalTokens": 12345
+    }
+  ]
+}
