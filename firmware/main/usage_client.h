@@ -8,6 +8,11 @@ typedef struct {
   bool has_percent;       // false if percentUsed was null (no limit configured)
   int percent_used;
   int minutes_remaining;
+  // true when this percentage is a local reconstruction (source:
+  // "estimated"), false when it came straight from Anthropic's own
+  // accounting (source: "anthropic") - lets the UI flag untrustworthy
+  // numbers instead of showing them identically to the real ones.
+  bool is_estimated;
 } usage_window_t;
 
 typedef struct {

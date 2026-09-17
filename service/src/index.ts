@@ -1,4 +1,5 @@
 import type { UsageResponse } from "@claude-usage-monitor/shared";
+import { createUsageSource } from "./anthropic-usage.js";
 import {
   createActiveBlockRunner,
   createAllBlocksRunner,
@@ -26,6 +27,7 @@ const runWeekly = createWeeklyRunner();
 const runAllBlocks = createAllBlocksRunner();
 const runAllWeekly = createAllWeeklyRunner();
 const refineSessionStart = createFirstEntryTimeCache();
+const getAuthoritativeUsage = createUsageSource();
 
 async function buildSnapshot(): Promise<UsageResponse> {
   return buildUsageResponse({
@@ -36,6 +38,7 @@ async function buildSnapshot(): Promise<UsageResponse> {
     limits,
     weeklyResetAnchor,
     refineSessionStart,
+    getAuthoritativeUsage,
     now: () => new Date(),
   });
 }
@@ -54,9 +57,16 @@ const server = createUsageServer(() => poller.getSnapshot());
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`claude-usage-monitor service listening on 0.0.0.0:${PORT}`);
   console.log(`polling ccusage every ${POLL_INTERVAL_MS}ms`);
-  if (limits.sessionTokenLimit === null) {
+  console.log(
+    "authoritative usage: local cache (~/.claude.json) first, OAuth API fallback, then estimate",
+  );
+  if (limits.sessionCostLimit !== null) {
+    console.log(`session limit: $${limits.sessionCostLimit} (cost-based)`);
+  } else if (limits.sessionTokenLimit !== null) {
+    console.log(`session limit: ${limits.sessionTokenLimit} tokens (token-based)`);
+  } else {
     console.log(
-      "CLAUDE_SESSION_TOKEN_LIMIT not set — self-calibrating from historical max block",
+      "no CLAUDE_SESSION_COST_LIMIT/CLAUDE_SESSION_TOKEN_LIMIT set — self-calibrating from historical max block",
     );
   }
   console.log(

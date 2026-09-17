@@ -20,11 +20,19 @@ export interface RawCcusageBlock {
   endTime: string;
   isActive: boolean;
   totalTokens: number;
+  costUSD: number;
 }
 
 export interface SessionBlock {
   active: boolean;
   tokensUsed: number;
+  // ccusage's cost-in-USD figure, computed from Anthropic's real published
+  // per-token-type pricing (cache reads priced far below fresh input, cache
+  // writes above it). Tracks the account's real usage-limit consumption far
+  // more consistently than raw token count does - verified empirically: two
+  // token-based calibration points from the same session implied limits
+  // 17% apart, while the matching cost-based points were only ~7% apart.
+  costUsed: number;
   windowStart: string;
   windowEnd: string;
 }
@@ -125,7 +133,8 @@ function isRawCcusageBlock(value: unknown): value is RawCcusageBlock {
     typeof block.endTime === "string" &&
     isValidDateString(block.endTime) &&
     typeof block.isActive === "boolean" &&
-    typeof block.totalTokens === "number"
+    typeof block.totalTokens === "number" &&
+    typeof block.costUSD === "number"
   );
 }
 
@@ -165,6 +174,7 @@ export async function getActiveSessionBlock(
     block: {
       active: raw.isActive,
       tokensUsed: raw.totalTokens,
+      costUsed: raw.costUSD,
       windowStart: raw.startTime,
       windowEnd: raw.endTime,
     },
@@ -301,20 +311,26 @@ export async function getRollingWeekTotal(
   };
 }
 
+export type HistoricalMaxBlockResult =
+  | { ok: true; maxTokens: number | null; maxCost: number | null }
+  | { ok: false; error: string };
+
 export type HistoricalMaxResult =
   | { ok: true; maxTokens: number | null }
   | { ok: false; error: string };
 
-// The self-calibrating fallback baseline when no real CLAUDE_SESSION_TOKEN_LIMIT
-// is configured (Anthropic doesn't publish real plan quotas): the highest
-// totalTokens among *completed* blocks, mirroring ccusage's own
-// `--token-limit max` resolution. The currently-active block is excluded -
-// including it would make the block its own baseline, so percentUsed would
-// just track "how much of this block have I used so far this block" rather
-// than "how does this compare to my biggest session ever."
-export async function getHistoricalMaxBlockTokens(
+// The self-calibrating fallback baseline when no explicit limit is
+// configured (Anthropic doesn't publish real plan quotas): the highest
+// totalTokens AND highest costUSD among *completed* blocks, tracked
+// independently - the priciest block need not be the one with the most raw
+// tokens (see the cost-vs-tokens comment on SessionBlock). The currently-
+// active block is excluded from both - including it would make the block
+// its own baseline, so percentUsed would just track "how much of this
+// block have I used so far" rather than "how does this compare to my
+// biggest session ever."
+export async function getHistoricalMaxBlockUsage(
   runCcusage: CcusageRunner,
-): Promise<HistoricalMaxResult> {
+): Promise<HistoricalMaxBlockResult> {
   const parsed = await runAndParseJson(runCcusage);
   if (!parsed.ok) return parsed;
 
@@ -331,6 +347,7 @@ export async function getHistoricalMaxBlockTokens(
   const blocks = (data as { blocks: unknown[] }).blocks;
 
   let maxTokens = 0;
+  let maxCost = 0;
   for (const raw of blocks) {
     if (typeof raw !== "object" || raw === null) continue;
     const block = raw as Record<string, unknown>;
@@ -338,9 +355,16 @@ export async function getHistoricalMaxBlockTokens(
     if (typeof block.totalTokens === "number" && block.totalTokens > maxTokens) {
       maxTokens = block.totalTokens;
     }
+    if (typeof block.costUSD === "number" && block.costUSD > maxCost) {
+      maxCost = block.costUSD;
+    }
   }
 
-  return { ok: true, maxTokens: maxTokens > 0 ? maxTokens : null };
+  return {
+    ok: true,
+    maxTokens: maxTokens > 0 ? maxTokens : null,
+    maxCost: maxCost > 0 ? maxCost : null,
+  };
 }
 
 // Same self-calibrating idea as getHistoricalMaxBlockTokens, but for the

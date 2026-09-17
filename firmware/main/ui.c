@@ -220,6 +220,7 @@ static void update_row(usage_row_t *row, const usage_window_t *window) {
   // "--" with no explanation reads as broken. Show 0% explicitly and say
   // why, instead of a blank that looks the same as "something's wrong."
   if (!window->present) {
+    lv_obj_set_style_text_color(row->percent, COLOR_TEXT, 0);
     lv_label_set_text(row->percent, "0%");
     lv_bar_set_value(row->bar, 0, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(row->bar, COLOR_OK, LV_PART_INDICATOR);
@@ -227,8 +228,19 @@ static void update_row(usage_row_t *row, const usage_window_t *window) {
     return;
   }
 
+  // A "~" prefix + muted color flags a locally-reconstructed estimate,
+  // rather than showing it identically to a real Anthropic-reported
+  // percentage - this is the whole reason the estimate/authoritative
+  // distinction exists (see shared/src/types.ts).
+  lv_obj_set_style_text_color(row->percent,
+                               window->is_estimated ? COLOR_MUTED : COLOR_TEXT, 0);
+
   if (window->has_percent) {
-    lv_label_set_text_fmt(row->percent, "%d%%", window->percent_used);
+    if (window->is_estimated) {
+      lv_label_set_text_fmt(row->percent, "~%d%%", window->percent_used);
+    } else {
+      lv_label_set_text_fmt(row->percent, "%d%%", window->percent_used);
+    }
     lv_bar_set_value(row->bar, window->percent_used, LV_ANIM_ON);
     lv_obj_set_style_bg_color(row->bar, color_for_percent(window->percent_used),
                                LV_PART_INDICATOR);

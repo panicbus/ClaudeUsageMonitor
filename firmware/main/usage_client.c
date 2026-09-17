@@ -20,11 +20,14 @@ static void parse_window(cJSON *window, usage_window_t *out) {
   cJSON *tokens_used = cJSON_GetObjectItem(window, "tokensUsed");
   cJSON *percent_used = cJSON_GetObjectItem(window, "percentUsed");
   cJSON *minutes_remaining = cJSON_GetObjectItem(window, "minutesRemaining");
+  cJSON *source = cJSON_GetObjectItem(window, "source");
 
   out->present = true;
   out->tokens_used = cJSON_IsNumber(tokens_used) ? tokens_used->valuedouble : 0;
   out->minutes_remaining =
       cJSON_IsNumber(minutes_remaining) ? minutes_remaining->valueint : 0;
+  out->is_estimated =
+      cJSON_IsString(source) && strcmp(source->valuestring, "estimated") == 0;
 
   if (cJSON_IsNumber(percent_used)) {
     out->has_percent = true;

@@ -1,4 +1,4 @@
-export function parseOptionalPositiveInt(
+export function parseOptionalPositiveNumber(
   value: string | undefined,
 ): number | null {
   if (value === undefined) return null;

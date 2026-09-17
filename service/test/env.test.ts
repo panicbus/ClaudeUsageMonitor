@@ -1,22 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { parseOptionalPositiveInt, parseRequiredPositiveInt } from "../src/env.js";
+import { parseOptionalPositiveNumber, parseRequiredPositiveInt } from "../src/env.js";
 
-describe("parseOptionalPositiveInt", () => {
+describe("parseOptionalPositiveNumber", () => {
   it("returns null when unset", () => {
-    expect(parseOptionalPositiveInt(undefined)).toBeNull();
+    expect(parseOptionalPositiveNumber(undefined)).toBeNull();
   });
 
   it("parses a valid positive integer string", () => {
-    expect(parseOptionalPositiveInt("500000")).toBe(500000);
+    expect(parseOptionalPositiveNumber("500000")).toBe(500000);
+  });
+
+  it("parses a valid positive decimal string (e.g. a dollar-cost limit)", () => {
+    expect(parseOptionalPositiveNumber("36.42")).toBe(36.42);
   });
 
   it("returns null for non-numeric input", () => {
-    expect(parseOptionalPositiveInt("not-a-number")).toBeNull();
+    expect(parseOptionalPositiveNumber("not-a-number")).toBeNull();
   });
 
   it("returns null for zero or negative input", () => {
-    expect(parseOptionalPositiveInt("0")).toBeNull();
-    expect(parseOptionalPositiveInt("-5")).toBeNull();
+    expect(parseOptionalPositiveNumber("0")).toBeNull();
+    expect(parseOptionalPositiveNumber("-5")).toBeNull();
   });
 });
 

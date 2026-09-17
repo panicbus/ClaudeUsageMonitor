@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
   getActiveSessionBlock,
-  getHistoricalMaxBlockTokens,
+  getHistoricalMaxBlockUsage,
   getHistoricalMaxWeeklyTokens,
   getWeeklyTotal,
 } from "../src/ccusage.js";
@@ -34,6 +34,7 @@ describe("getActiveSessionBlock", () => {
       block: {
         active: true,
         tokensUsed: 1562839,
+        costUsed: 0.8164070000000001,
         windowStart: "2026-09-13T06:00:00.000Z",
         windowEnd: "2026-09-13T11:00:00.000Z",
       },
@@ -82,6 +83,17 @@ describe("getActiveSessionBlock", () => {
   it("fails gracefully when a block's timestamps are syntactically stringy but not real dates", async () => {
     const result = await getActiveSessionBlock(async () =>
       loadFixture("blocks-bad-dates.json"),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/missing expected fields/i);
+    }
+  });
+
+  it("fails gracefully when a block is missing costUSD", async () => {
+    const result = await getActiveSessionBlock(async () =>
+      loadFixture("blocks-missing-cost.json"),
     );
 
     expect(result.ok).toBe(false);
@@ -192,25 +204,29 @@ describe("getWeeklyTotal", () => {
   });
 });
 
-describe("getHistoricalMaxBlockTokens", () => {
-  it("returns the highest totalTokens among completed blocks, excluding gaps and the active block", async () => {
-    const result = await getHistoricalMaxBlockTokens(async () =>
+describe("getHistoricalMaxBlockUsage", () => {
+  it("returns the highest totalTokens AND highest costUSD among completed blocks - independently, since they need not be the same block", async () => {
+    const result = await getHistoricalMaxBlockUsage(async () =>
       loadFixture("blocks-history.json"),
     );
 
-    expect(result).toEqual({ ok: true, maxTokens: 45938431 });
+    // maxTokens comes from the 45,938,431-token block; maxCost comes from
+    // the 3,360,556-token block ($22.70) - a smaller, cheaper-per-token
+    // block can still be the priciest one, which is exactly why cost and
+    // token maxima are tracked separately rather than assumed to coincide.
+    expect(result).toEqual({ ok: true, maxTokens: 45938431, maxCost: 22.7 });
   });
 
-  it("returns null when there are no completed blocks at all", async () => {
-    const result = await getHistoricalMaxBlockTokens(async () =>
+  it("returns nulls when there are no completed blocks at all", async () => {
+    const result = await getHistoricalMaxBlockUsage(async () =>
       loadFixture("blocks-empty.json"),
     );
 
-    expect(result).toEqual({ ok: true, maxTokens: null });
+    expect(result).toEqual({ ok: true, maxTokens: null, maxCost: null });
   });
 
   it("fails gracefully when ccusage's stdout isn't valid JSON", async () => {
-    const result = await getHistoricalMaxBlockTokens(async () => "not json");
+    const result = await getHistoricalMaxBlockUsage(async () => "not json");
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

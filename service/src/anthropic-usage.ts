@@ -1,0 +1,335 @@
+import { execFile } from "node:child_process";
+import { readFile as readFileAsync } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+// Authoritative Claude usage data, straight from Claude Code's own accounting
+// rather than an estimate reconstructed from local transcripts. Three tiers,
+// tried in order by createUsageSource(): a local cache file (no credentials,
+// no network), the OAuth API Claude Code itself calls (needs the same
+// credentials Claude Code already has on this machine), and finally the
+// caller falls back to the ccusage-based estimate in usage.ts.
+
+export interface WindowUsage {
+  utilization: number;
+  resetsAt: string;
+}
+
+export interface AuthoritativeUsage {
+  fiveHour: WindowUsage | null;
+  sevenDay: WindowUsage | null;
+}
+
+export type AuthoritativeUsageResult =
+  | { ok: true; usage: AuthoritativeUsage }
+  | { ok: false; error: string };
+
+export type UsageFetcher = () => Promise<AuthoritativeUsageResult>;
+
+function isValidWindowUsage(
+  value: unknown,
+): value is { utilization: number; resets_at: string } {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.utilization === "number" &&
+    typeof v.resets_at === "string" &&
+    !Number.isNaN(Date.parse(v.resets_at))
+  );
+}
+
+function parseWindows(utilization: Record<string, unknown>): AuthoritativeUsage {
+  const fiveHourRaw = utilization.five_hour;
+  const sevenDayRaw = utilization.seven_day;
+
+  return {
+    fiveHour: isValidWindowUsage(fiveHourRaw)
+      ? { utilization: fiveHourRaw.utilization, resetsAt: fiveHourRaw.resets_at }
+      : null,
+    sevenDay: isValidWindowUsage(sevenDayRaw)
+      ? { utilization: sevenDayRaw.utilization, resetsAt: sevenDayRaw.resets_at }
+      : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tier 1: the local cache file Claude Code itself writes and reads from.
+// ---------------------------------------------------------------------------
+
+// Matches Claude Code's own invalidation threshold for this cache (found in
+// its bundle) - if Claude Code itself wouldn't trust this data anymore,
+// neither should we.
+const CACHE_STALE_MS = 60 * 60 * 1000;
+
+function defaultReadClaudeJson(): Promise<string> {
+  return readFileAsync(join(homedir(), ".claude.json"), "utf-8");
+}
+
+export interface ReadCachedUsageDeps {
+  readFile?: () => Promise<string>;
+  now?: () => number;
+}
+
+export async function readCachedUsage(
+  deps: ReadCachedUsageDeps = {},
+): Promise<AuthoritativeUsageResult> {
+  const { readFile = defaultReadClaudeJson, now = () => Date.now() } = deps;
+
+  let raw: string;
+  try {
+    raw = await readFile();
+  } catch {
+    return { ok: false, error: "no local usage cache available" };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "local usage cache is malformed JSON" };
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return { ok: false, error: "local usage cache has an unexpected shape" };
+  }
+  const root = parsed as Record<string, unknown>;
+
+  const cached = root.cachedUsageUtilization;
+  if (typeof cached !== "object" || cached === null) {
+    return { ok: false, error: "local usage cache has no cachedUsageUtilization" };
+  }
+  const cachedRecord = cached as Record<string, unknown>;
+
+  if (typeof cachedRecord.fetchedAtMs !== "number") {
+    return { ok: false, error: "local usage cache is missing fetchedAtMs" };
+  }
+  if (now() - cachedRecord.fetchedAtMs > CACHE_STALE_MS) {
+    return { ok: false, error: "local usage cache is stale" };
+  }
+
+  // Guards against a cache left over from a previously logged-in account -
+  // Claude Code applies the same check before trusting this file.
+  const oauthAccount = root.oauthAccount;
+  const activeAccountUuid =
+    typeof oauthAccount === "object" && oauthAccount !== null
+      ? (oauthAccount as Record<string, unknown>).accountUuid
+      : undefined;
+  if (
+    typeof cachedRecord.accountUuid === "string" &&
+    typeof activeAccountUuid === "string" &&
+    cachedRecord.accountUuid !== activeAccountUuid
+  ) {
+    return { ok: false, error: "local usage cache is for a different account" };
+  }
+
+  const utilization = cachedRecord.utilization;
+  if (typeof utilization !== "object" || utilization === null) {
+    return { ok: false, error: "local usage cache is missing utilization data" };
+  }
+
+  return { ok: true, usage: parseWindows(utilization as Record<string, unknown>) };
+}
+
+// ---------------------------------------------------------------------------
+// Tier 2: the OAuth API endpoint Claude Code itself calls to refresh that
+// cache. Needs the same credentials Claude Code already stores locally.
+// ---------------------------------------------------------------------------
+
+export interface OAuthToken {
+  accessToken: string;
+  expiresAt: number | null;
+}
+
+function parseClaudeAiOauthJson(raw: string): OAuthToken | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const oauth = (parsed as Record<string, unknown>).claudeAiOauth;
+  if (typeof oauth !== "object" || oauth === null) return null;
+  const oauthRecord = oauth as Record<string, unknown>;
+  if (typeof oauthRecord.accessToken !== "string") return null;
+  return {
+    accessToken: oauthRecord.accessToken,
+    expiresAt: typeof oauthRecord.expiresAt === "number" ? oauthRecord.expiresAt : null,
+  };
+}
+
+async function defaultReadKeychain(): Promise<string> {
+  const { stdout } = await execFileAsync("security", [
+    "find-generic-password",
+    "-s",
+    "Claude Code-credentials",
+    "-w",
+  ]);
+  return stdout;
+}
+
+function defaultReadCredentialsFile(): Promise<string> {
+  return readFileAsync(join(homedir(), ".claude", ".credentials.json"), "utf-8");
+}
+
+export interface ReadOAuthTokenDeps {
+  readKeychain?: () => Promise<string>;
+  readCredentialsFile?: () => Promise<string>;
+  readEnv?: () => string | undefined;
+}
+
+// Tries the keychain, then the cross-platform credentials file, then the env
+// var - the same order and sources Claude Code itself supports. We never
+// refresh an expired token ourselves: Claude Code refreshes its own token as
+// part of normal use, and re-reading here on every attempt picks that up for
+// free rather than duplicating an OAuth refresh flow.
+export async function readOAuthToken(
+  deps: ReadOAuthTokenDeps = {},
+): Promise<OAuthToken | null> {
+  const {
+    readKeychain = defaultReadKeychain,
+    readCredentialsFile = defaultReadCredentialsFile,
+    readEnv = () => process.env.CLAUDE_CODE_OAUTH_TOKEN,
+  } = deps;
+
+  try {
+    const token = parseClaudeAiOauthJson(await readKeychain());
+    if (token) return token;
+  } catch {
+    // fall through to the next source
+  }
+
+  try {
+    const token = parseClaudeAiOauthJson(await readCredentialsFile());
+    if (token) return token;
+  } catch {
+    // fall through to the next source
+  }
+
+  const envToken = readEnv();
+  if (envToken) return { accessToken: envToken, expiresAt: null };
+
+  return null;
+}
+
+const USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage";
+// The real request (traced from Claude Code's own bundle) only sends
+// Authorization + Content-Type. anthropic-beta and User-Agent are added
+// defensively anyway: multiple real users have reported hours-long 429
+// lockouts on this exact endpoint without a claude-code/* User-Agent, and a
+// harmless extra header costs nothing if it turns out to be unnecessary.
+const CLAUDE_CODE_USER_AGENT = "claude-code/2.1.270";
+
+export async function fetchAuthoritativeUsage(
+  token: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AuthoritativeUsageResult> {
+  let response: Response;
+  try {
+    response = await fetchImpl(USAGE_ENDPOINT, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "anthropic-beta": "oauth-2025-04-20",
+        "User-Agent": CLAUDE_CODE_USER_AGENT,
+        "Content-Type": "application/json",
+      },
+    });
+  } catch {
+    return { ok: false, error: "network request to the usage API failed" };
+  }
+
+  if (response.status === 401) {
+    return { ok: false, error: "usage API rejected the oauth token (401)" };
+  }
+  if (response.status === 429) {
+    return { ok: false, error: "usage API rate limited the request (429)" };
+  }
+  if (!response.ok) {
+    return { ok: false, error: `usage API returned status ${response.status}` };
+  }
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    return { ok: false, error: "usage API returned malformed JSON" };
+  }
+
+  if (typeof data !== "object" || data === null) {
+    return { ok: false, error: "usage API returned an unexpected response shape" };
+  }
+
+  return { ok: true, usage: parseWindows(data as Record<string, unknown>) };
+}
+
+export interface CreateAuthoritativeUsageFetcherOptions {
+  readToken?: () => Promise<OAuthToken | null>;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+  ttlMs?: number;
+}
+
+// Wraps the network call in a TTL cache (default 180s, the safe polling
+// interval reported for this endpoint) with basic exponential backoff on
+// 429 - this shares a rate-limit bucket with Claude Code's own token, so
+// getting this wrong risks breaking the user's own `/usage` panel, not just
+// ours.
+export function createAuthoritativeUsageFetcher(
+  options: CreateAuthoritativeUsageFetcherOptions = {},
+): UsageFetcher {
+  const {
+    readToken = () => readOAuthToken(),
+    fetchImpl = fetch,
+    now = () => Date.now(),
+    ttlMs = 180_000,
+  } = options;
+
+  let cached: AuthoritativeUsageResult | null = null;
+  let cachedAt = 0;
+  let backoffMultiplier = 1;
+
+  return async () => {
+    if (cached && now() - cachedAt < ttlMs * backoffMultiplier) {
+      return cached;
+    }
+
+    const token = await readToken();
+    const result: AuthoritativeUsageResult = token
+      ? await fetchAuthoritativeUsage(token.accessToken, fetchImpl)
+      : { ok: false, error: "no oauth token available" };
+
+    backoffMultiplier =
+      !result.ok && result.error.includes("429")
+        ? Math.min(backoffMultiplier * 2, 16)
+        : 1;
+
+    cached = result;
+    cachedAt = now();
+    return result;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Combined source: cache first (cheap, no credentials), network second.
+// ---------------------------------------------------------------------------
+
+export interface CreateUsageSourceOptions {
+  readCache?: () => Promise<AuthoritativeUsageResult>;
+  fetchNetwork?: UsageFetcher;
+}
+
+export function createUsageSource(
+  options: CreateUsageSourceOptions = {},
+): UsageFetcher {
+  const { readCache = () => readCachedUsage(), fetchNetwork = createAuthoritativeUsageFetcher() } =
+    options;
+
+  return async () => {
+    const cached = await readCache();
+    if (cached.ok) return cached;
+    return fetchNetwork();
+  };
+}
