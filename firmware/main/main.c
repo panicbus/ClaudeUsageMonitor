@@ -62,11 +62,8 @@ void app_main(void) {
     bsp_display_unlock();
   }
 
-  if (!wifi_connect()) {
-    ESP_LOGE(TAG, "failed to connect to WiFi");
-  } else {
-    ESP_LOGI(TAG, "WiFi connected");
-  }
+  wifi_connect();
+  ESP_LOGI(TAG, "WiFi connected");
 
   // -1 means "never had a successful poll yet" - kept distinct from a real
   // elapsed time so the UI can tell "never connected" from "lost it a
