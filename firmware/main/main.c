@@ -6,6 +6,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mdns.h"
 #include "nvs_flash.h"
 #include "power.h"
 #include "ui.h"
@@ -64,6 +65,14 @@ void app_main(void) {
 
   wifi_connect();
   ESP_LOGI(TAG, "WiFi connected");
+
+  // Lets usage_client.c target the dev machine by its Bonjour hostname
+  // (CONFIG_USAGE_SERVICE_URL, e.g. "http://my-mac.local:4317/usage")
+  // instead of a hardcoded LAN IP that breaks the moment DHCP reassigns it -
+  // a real failure mode this device hit twice. Resolution itself happens
+  // transparently inside the HTTP client via CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES;
+  // this call just starts the mDNS service that answers those lookups.
+  ESP_ERROR_CHECK(mdns_init());
 
   // -1 means "never had a successful poll yet" - kept distinct from a real
   // elapsed time so the UI can tell "never connected" from "lost it a

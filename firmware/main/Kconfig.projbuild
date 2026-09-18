@@ -14,9 +14,12 @@ config WIFI_PASSWORD
 
 config USAGE_SERVICE_URL
     string "Usage service URL"
-    default "http://192.168.4.34:4317/usage"
+    default ""
     help
-        Full URL of the claude-usage-monitor service's /usage endpoint on
-        the LAN. Update this if the dev machine's LAN IP changes.
+        Full URL of the claude-usage-monitor service's /usage endpoint.
+        Use the dev machine's mDNS/Bonjour hostname (e.g.
+        "http://my-mac.local:4317/usage"), not a raw LAN IP - the IP
+        changes whenever DHCP reassigns it, which silently breaks polling
+        until someone notices and reflashes. The hostname survives that.
 
 endmenu

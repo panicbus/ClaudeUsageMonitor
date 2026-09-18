@@ -127,17 +127,51 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 2.9.0
+  espressif/mdns:
+    component_hash: b679eafd0acae2066e2645bd91d073e33ca5be515e2545cd3c4e55a3e3bce3cb
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.13.1
   idf:
     source:
       type: idf
     version: 5.5.5
   lvgl/lvgl:
-    component_hash: 184e532558c1c45fefed631f3e235423d22582aafb4630f3e8885c35281a49ae
-    dependencies: []
+    component_hash: 7d82410747bbfb319531449749e940f440f8414f041f9eaba13f0d1dd7f58cdd
+    dependencies:
+    - name: espressif/freetype
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=5.5 && $CONFIG{LV_USE_FREETYPE} == True
+      version: ^2.14.3
+    - name: espressif/libjpeg-turbo
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=5.5 && $CONFIG{LV_USE_LIBJPEG_TURBO} == True
+      version: ^3.1.1
+    - name: espressif/libpng
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=5.5 && $CONFIG{LV_USE_LIBPNG} == True
+      version: ^1.6.58
+    - name: espressif/lz4
+      registry_url: https://components.espressif.com
+      require: private
+      rules:
+      - if: idf_version >=5.5 && $CONFIG{LV_USE_LZ4} == True && $CONFIG{LV_USE_LZ4_INTERNAL} == False
+      version: ^1.10.0
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 9.5.0
+    version: 9.6.0~1
   waveshare/esp32_s3_touch_amoled_1_8:
     component_hash: dd53b012d695112d0d6eaf137ec269b53b1518a64f56f2993f47e55b4e28b5f5
     dependencies:
@@ -189,8 +223,9 @@ dependencies:
     - esp32s3
     version: 2.0.3
 direct_dependencies:
+- espressif/mdns
 - idf
 - waveshare/esp32_s3_touch_amoled_1_8
-manifest_hash: 252dd132ca5cb5f48417539e2980fd1c6d609a804e734ce5ecb32b13b8eb964b
+manifest_hash: ac880272399f5fd08536248d4d35fcc94f3c2159b2b6cf5d9fb0476364b342f7
 target: esp32s3
 version: 2.0.0
