@@ -12,6 +12,21 @@ config WIFI_PASSWORD
     help
         WPA2 password for the WiFi network above.
 
+config WIFI_SSID_2
+    string "Fallback WiFi SSID (optional)"
+    default ""
+    help
+        A second trusted network, e.g. a phone's personal hotspot. The
+        device scans on every connection attempt and always prefers
+        WIFI_SSID above when it's in range, only using this one when
+        WIFI_SSID isn't visible. Leave blank to disable.
+
+config WIFI_PASSWORD_2
+    string "Fallback WiFi Password (optional)"
+    default ""
+    help
+        WPA2 password for WIFI_SSID_2 above.
+
 config USAGE_SERVICE_URL
     string "Usage service URL"
     default ""

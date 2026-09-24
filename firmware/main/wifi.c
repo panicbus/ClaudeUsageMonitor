@@ -1,11 +1,14 @@
 #include "wifi.h"
 
+#include <string.h>
+
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/task.h"
 
 #define WIFI_CONNECTED_BIT BIT0
 
@@ -19,10 +22,30 @@
 #define WIFI_RETRY_BASE_DELAY_MS 2000
 #define WIFI_RETRY_MAX_DELAY_MS 60000
 
+// Trusted networks, in priority order - WIFI_SSID (home) is always preferred
+// over WIFI_SSID_2 (e.g. a phone hotspot) whenever both are in range. An
+// empty ssid means that slot isn't configured and is skipped.
+typedef struct {
+  const char *ssid;
+  const char *password;
+} known_network_t;
+
+#define NUM_KNOWN_NETWORKS 2
+static const known_network_t s_known_networks[NUM_KNOWN_NETWORKS] = {
+    {CONFIG_WIFI_SSID, CONFIG_WIFI_PASSWORD},
+    {CONFIG_WIFI_SSID_2, CONFIG_WIFI_PASSWORD_2},
+};
+
+// Bounds the stack-allocated scan-results buffer in select_best_known_network
+// below - this is a cap on how many nearby APs we'll look at, not a limit on
+// how many networks this device trusts.
+#define MAX_SCAN_RESULTS 12
+
 static const char *TAG = "wifi";
 
 static EventGroupHandle_t s_wifi_event_group;
 static esp_timer_handle_t s_reconnect_timer;
+static TaskHandle_t s_reconnect_task;
 static int s_retry_count = 0;
 
 static uint32_t backoff_delay_ms(int retry_count) {
@@ -34,12 +57,75 @@ static uint32_t backoff_delay_ms(int retry_count) {
   return delay > WIFI_RETRY_MAX_DELAY_MS ? WIFI_RETRY_MAX_DELAY_MS : delay;
 }
 
-static void reconnect_timer_callback(void *arg) { esp_wifi_connect(); }
+// Scans for nearby APs and returns the index of the highest-priority (i.e.
+// earliest in s_known_networks) trusted network that's actually in range, or
+// -1 if none of them are. A blocking scan takes on the order of seconds, so
+// this only ever runs on s_reconnect_task, never on the event-loop task or
+// inside an esp_timer callback.
+static int select_best_known_network(void) {
+  wifi_scan_config_t scan_config = {0};
+  if (esp_wifi_scan_start(&scan_config, true) != ESP_OK) {
+    return -1;
+  }
+
+  wifi_ap_record_t ap_records[MAX_SCAN_RESULTS];
+  uint16_t ap_count = MAX_SCAN_RESULTS;
+  if (esp_wifi_scan_get_ap_records(&ap_count, ap_records) != ESP_OK) {
+    return -1;
+  }
+
+  for (size_t i = 0; i < NUM_KNOWN_NETWORKS; i++) {
+    if (s_known_networks[i].ssid[0] == '\0') {
+      continue;
+    }
+    for (uint16_t j = 0; j < ap_count; j++) {
+      if (strcmp((const char *)ap_records[j].ssid, s_known_networks[i].ssid) ==
+          0) {
+        return (int)i;
+      }
+    }
+  }
+  return -1;
+}
+
+// Picks the best currently-visible trusted network (falling back to the
+// top-priority one if the scan finds none of them, since a scan can miss a
+// network transiently and a wrong guess just costs one failed attempt) and
+// connects to it.
+static void connect_to_best_known_network(void) {
+  int index = select_best_known_network();
+  if (index < 0) {
+    index = 0;
+  }
+  const known_network_t *network = &s_known_networks[index];
+
+  wifi_config_t wifi_config = {0};
+  strlcpy((char *)wifi_config.sta.ssid, network->ssid,
+          sizeof(wifi_config.sta.ssid));
+  strlcpy((char *)wifi_config.sta.password, network->password,
+          sizeof(wifi_config.sta.password));
+  wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+
+  ESP_LOGI(TAG, "connecting to SSID: %s", network->ssid);
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+  esp_wifi_connect();
+}
+
+static void reconnect_task(void *arg) {
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    connect_to_best_known_network();
+  }
+}
+
+static void reconnect_timer_callback(void *arg) {
+  xTaskNotifyGive(s_reconnect_task);
+}
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data) {
   if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-    esp_wifi_connect();
+    xTaskNotifyGive(s_reconnect_task);
   } else if (event_base == WIFI_EVENT &&
              event_id == WIFI_EVENT_STA_DISCONNECTED) {
     // Retry forever, unconditionally - both for a transient drop after a
@@ -82,6 +168,11 @@ void wifi_connect(void) {
   };
   ESP_ERROR_CHECK(esp_timer_create(&timer_args, &s_reconnect_timer));
 
+  // Does the actual (scan + connect) work off the event-loop/timer tasks,
+  // since a scan blocks for a couple of seconds - see select_best_known_network.
+  xTaskCreate(reconnect_task, "wifi_reconnect_task", 8192, NULL, 5,
+              &s_reconnect_task);
+
   wifi_init_config_t init_config = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&init_config));
 
@@ -90,20 +181,8 @@ void wifi_connect(void) {
   ESP_ERROR_CHECK(esp_event_handler_register(
       IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
 
-  wifi_config_t wifi_config = {
-      .sta =
-          {
-              .ssid = CONFIG_WIFI_SSID,
-              .password = CONFIG_WIFI_PASSWORD,
-              .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-          },
-  };
-
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
   ESP_ERROR_CHECK(esp_wifi_start());
-
-  ESP_LOGI(TAG, "connecting to SSID: %s", CONFIG_WIFI_SSID);
 
   xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdFALSE,
                        portMAX_DELAY);
