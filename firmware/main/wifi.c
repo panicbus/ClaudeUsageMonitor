@@ -36,11 +36,6 @@ static const known_network_t s_known_networks[NUM_KNOWN_NETWORKS] = {
     {CONFIG_WIFI_SSID_2, CONFIG_WIFI_PASSWORD_2},
 };
 
-// Bounds the stack-allocated scan-results buffer in select_best_known_network
-// below - this is a cap on how many nearby APs we'll look at, not a limit on
-// how many networks this device trusts.
-#define MAX_SCAN_RESULTS 12
-
 static const char *TAG = "wifi";
 
 static EventGroupHandle_t s_wifi_event_group;
@@ -57,32 +52,34 @@ static uint32_t backoff_delay_ms(int retry_count) {
   return delay > WIFI_RETRY_MAX_DELAY_MS ? WIFI_RETRY_MAX_DELAY_MS : delay;
 }
 
-// Scans for nearby APs and returns the index of the highest-priority (i.e.
-// earliest in s_known_networks) trusted network that's actually in range, or
-// -1 if none of them are. A blocking scan takes on the order of seconds, so
-// this only ever runs on s_reconnect_task, never on the event-loop task or
-// inside an esp_timer callback.
+// Scans for the highest-priority (i.e. earliest in s_known_networks) trusted
+// network that's actually in range, and returns its index, or -1 if none of
+// them are. Scans for each known SSID *directly* (one targeted scan per
+// candidate) rather than one generic broadcast scan for everything - a
+// generic scan misses some networks entirely, notably an iPhone Personal
+// Hotspot with "Maximize Compatibility" off, which only answers a probe
+// that names its own SSID and stays invisible to a broad discovery scan.
+// Each targeted scan blocks for on the order of a second, so this only ever
+// runs on s_reconnect_task, never on the event-loop task or inside an
+// esp_timer callback.
 static int select_best_known_network(void) {
-  wifi_scan_config_t scan_config = {0};
-  if (esp_wifi_scan_start(&scan_config, true) != ESP_OK) {
-    return -1;
-  }
-
-  wifi_ap_record_t ap_records[MAX_SCAN_RESULTS];
-  uint16_t ap_count = MAX_SCAN_RESULTS;
-  if (esp_wifi_scan_get_ap_records(&ap_count, ap_records) != ESP_OK) {
-    return -1;
-  }
-
   for (size_t i = 0; i < NUM_KNOWN_NETWORKS; i++) {
     if (s_known_networks[i].ssid[0] == '\0') {
       continue;
     }
-    for (uint16_t j = 0; j < ap_count; j++) {
-      if (strcmp((const char *)ap_records[j].ssid, s_known_networks[i].ssid) ==
-          0) {
-        return (int)i;
-      }
+
+    wifi_scan_config_t scan_config = {
+        .ssid = (uint8_t *)s_known_networks[i].ssid,
+    };
+    if (esp_wifi_scan_start(&scan_config, true) != ESP_OK) {
+      continue;
+    }
+
+    wifi_ap_record_t ap_record;
+    uint16_t ap_count = 1;
+    if (esp_wifi_scan_get_ap_records(&ap_count, &ap_record) == ESP_OK &&
+        ap_count > 0) {
+      return (int)i;
     }
   }
   return -1;
