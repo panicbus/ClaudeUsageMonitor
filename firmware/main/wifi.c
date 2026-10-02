@@ -57,10 +57,11 @@ static uint32_t backoff_delay_ms(int retry_count) {
 // Scans for the highest-priority (i.e. earliest in s_known_networks) trusted
 // network that's actually in range, and returns its index, or -1 if none of
 // them are. Scans for each known SSID *directly* (one targeted scan per
-// candidate) rather than one generic broadcast scan for everything - a
-// generic scan misses some networks entirely, notably an iPhone Personal
-// Hotspot with "Maximize Compatibility" off, which only answers a probe
-// that names its own SSID and stays invisible to a broad discovery scan.
+// candidate), which also finds networks that don't advertise in a broadcast
+// scan. An iPhone hotspot that's never found is a phone-side problem, not a
+// scan problem: it must be on 2.4 GHz ("Maximize Compatibility" on - this
+// radio can't see 5 GHz), and the configured SSID must match byte-for-byte,
+// including iOS's curly apostrophe in names like "Nico’s iPhone".
 // Each targeted scan blocks for on the order of a second, so this only ever
 // runs on s_reconnect_task, never on the event-loop task or inside an
 // esp_timer callback.
