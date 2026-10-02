@@ -22,18 +22,20 @@
 #define WIFI_RETRY_BASE_DELAY_MS 2000
 #define WIFI_RETRY_MAX_DELAY_MS 60000
 
-// Trusted networks, in priority order - WIFI_SSID (home) is always preferred
-// over WIFI_SSID_2 (e.g. a phone hotspot) whenever both are in range. An
+// Trusted networks, in priority order - the earliest one that's actually in
+// range wins, so WIFI_SSID (home) beats WIFI_SSID_2 (e.g. a phone hotspot),
+// which beats WIFI_SSID_3 (a spare: travel router, office, second phone). An
 // empty ssid means that slot isn't configured and is skipped.
 typedef struct {
   const char *ssid;
   const char *password;
 } known_network_t;
 
-#define NUM_KNOWN_NETWORKS 2
+#define NUM_KNOWN_NETWORKS 3
 static const known_network_t s_known_networks[NUM_KNOWN_NETWORKS] = {
     {CONFIG_WIFI_SSID, CONFIG_WIFI_PASSWORD},
     {CONFIG_WIFI_SSID_2, CONFIG_WIFI_PASSWORD_2},
+    {CONFIG_WIFI_SSID_3, CONFIG_WIFI_PASSWORD_3},
 };
 
 static const char *TAG = "wifi";

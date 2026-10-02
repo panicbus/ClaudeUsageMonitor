@@ -27,6 +27,20 @@ config WIFI_PASSWORD_2
     help
         WPA2 password for WIFI_SSID_2 above.
 
+config WIFI_SSID_3
+    string "Second fallback WiFi SSID (optional)"
+    default ""
+    help
+        A third trusted network, tried only when neither WIFI_SSID nor
+        WIFI_SSID_2 is in range - e.g. a travel router, an office network,
+        or a second phone's hotspot. Leave blank to disable.
+
+config WIFI_PASSWORD_3
+    string "Second fallback WiFi Password (optional)"
+    default ""
+    help
+        WPA2 password for WIFI_SSID_3 above.
+
 config USAGE_SERVICE_URL
     string "Usage service URL"
     default ""
