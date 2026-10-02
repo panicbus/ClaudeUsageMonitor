@@ -284,16 +284,22 @@ describe("createAuthoritativeUsageFetcher", () => {
 
 describe("readCachedUsage", () => {
   const NOW_MS = 1_800_000_000_000;
-  const freshFile = JSON.stringify({
-    oauthAccount: { accountUuid: "acct-123" },
-    cachedUsageUtilization: {
-      fetchedAtMs: NOW_MS - 60_000, // 1 minute old
-      accountUuid: "acct-123",
-      utilization: {
-        five_hour: { utilization: 30, resets_at: "2026-09-17T03:20:00.000Z" },
-        seven_day: { utilization: 42, resets_at: "2026-09-19T18:00:00.000Z" },
+  // Reset times relative to the test clock, so these model windows that are
+  // still open (the cache only trusts a window that hasn't ended yet).
+  const FIVE_HOUR_RESET = new Date(NOW_MS + 2 * 3_600_000).toISOString();
+  const SEVEN_DAY_RESET = new Date(NOW_MS + 3 * 86_400_000).toISOString();
+  const cacheFile = (utilization: unknown) =>
+    JSON.stringify({
+      oauthAccount: { accountUuid: "acct-123" },
+      cachedUsageUtilization: {
+        fetchedAtMs: NOW_MS - 60_000, // 1 minute old
+        accountUuid: "acct-123",
+        utilization,
       },
-    },
+    });
+  const freshFile = cacheFile({
+    five_hour: { utilization: 30, resets_at: FIVE_HOUR_RESET },
+    seven_day: { utilization: 42, resets_at: SEVEN_DAY_RESET },
   });
 
   it("reads a fresh, matching-account cache and parses both windows", async () => {
@@ -305,9 +311,38 @@ describe("readCachedUsage", () => {
     expect(result).toEqual({
       ok: true,
       usage: {
-        fiveHour: { utilization: 30, resetsAt: "2026-09-17T03:20:00.000Z" },
-        sevenDay: { utilization: 42, resetsAt: "2026-09-19T18:00:00.000Z" },
+        fiveHour: { utilization: 30, resetsAt: FIVE_HOUR_RESET },
+        sevenDay: { utilization: 42, resetsAt: SEVEN_DAY_RESET },
       },
+    });
+  });
+
+  it("drops a window whose reset time has already passed, even from a fresh cache", async () => {
+    // Written 1 minute ago while the session was open, but it ended since.
+    const file = cacheFile({
+      five_hour: { utilization: 96, resets_at: new Date(NOW_MS - 1_000).toISOString() },
+      seven_day: { utilization: 42, resets_at: SEVEN_DAY_RESET },
+    });
+
+    const result = await readCachedUsage({ readFile: async () => file, now: () => NOW_MS });
+
+    expect(result).toEqual({
+      ok: true,
+      usage: { fiveHour: null, sevenDay: { utilization: 42, resetsAt: SEVEN_DAY_RESET } },
+    });
+  });
+
+  it("treats Anthropic's 'no active window' shape (resets_at null) as an absent window", async () => {
+    const file = cacheFile({
+      five_hour: { utilization: 0, resets_at: null },
+      seven_day: { utilization: 42, resets_at: SEVEN_DAY_RESET },
+    });
+
+    const result = await readCachedUsage({ readFile: async () => file, now: () => NOW_MS });
+
+    expect(result).toEqual({
+      ok: true,
+      usage: { fiveHour: null, sevenDay: { utilization: 42, resetsAt: SEVEN_DAY_RESET } },
     });
   });
 
@@ -371,16 +406,9 @@ describe("readCachedUsage", () => {
   });
 
   it("treats a null window in the cache the same as the network response would", async () => {
-    const fiveHourOnlyFile = JSON.stringify({
-      oauthAccount: { accountUuid: "acct-123" },
-      cachedUsageUtilization: {
-        fetchedAtMs: NOW_MS - 60_000,
-        accountUuid: "acct-123",
-        utilization: {
-          five_hour: { utilization: 5, resets_at: "2026-09-17T03:20:00.000Z" },
-          seven_day: null,
-        },
-      },
+    const fiveHourOnlyFile = cacheFile({
+      five_hour: { utilization: 5, resets_at: FIVE_HOUR_RESET },
+      seven_day: null,
     });
 
     const result = await readCachedUsage({
@@ -391,7 +419,7 @@ describe("readCachedUsage", () => {
     expect(result).toEqual({
       ok: true,
       usage: {
-        fiveHour: { utilization: 5, resetsAt: "2026-09-17T03:20:00.000Z" },
+        fiveHour: { utilization: 5, resetsAt: FIVE_HOUR_RESET },
         sevenDay: null,
       },
     });
@@ -443,5 +471,48 @@ describe("createUsageSource", () => {
     const result = await getUsage();
 
     expect(result.ok).toBe(false);
+  });
+
+  describe("when the cache has no live session window", () => {
+    // A cache that parsed fine but has no open five_hour window: none was
+    // active when it was written, or it has ended since.
+    const weekOnlyCache: AuthoritativeUsageResult = {
+      ok: true,
+      usage: {
+        fiveHour: null,
+        sevenDay: { utilization: 42, resetsAt: "2026-09-19T18:00:00.000Z" },
+      },
+    };
+    const liveResult: AuthoritativeUsageResult = {
+      ok: true,
+      usage: {
+        fiveHour: { utilization: 3, resetsAt: "2026-09-17T05:00:00.000Z" },
+        sevenDay: { utilization: 43, resetsAt: "2026-09-19T18:00:00.000Z" },
+      },
+    };
+
+    it("asks the live API rather than leaving the session to the local estimate", async () => {
+      const fetchNetwork = vi.fn(async () => liveResult);
+      const getUsage = createUsageSource({
+        readCache: async () => weekOnlyCache,
+        fetchNetwork,
+      });
+
+      const result = await getUsage();
+
+      expect(result).toEqual(liveResult);
+      expect(fetchNetwork).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to the cache's live weekly window when the API is unreachable", async () => {
+      const getUsage = createUsageSource({
+        readCache: async () => weekOnlyCache,
+        fetchNetwork: async () => failResult,
+      });
+
+      const result = await getUsage();
+
+      expect(result).toEqual(weekOnlyCache);
+    });
   });
 });

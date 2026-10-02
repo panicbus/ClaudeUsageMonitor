@@ -15,6 +15,11 @@
 
 #define POLL_INTERVAL_MS 15000
 
+// Consecutive failed polls (~1 minute) before asking wifi.c to look for
+// another trusted network - long enough that a service restart or a brief
+// Mac sleep doesn't bounce the link.
+#define POLL_FAILURES_BEFORE_RESELECT 4
+
 static const char *TAG = "usage_monitor";
 
 void app_main(void) {
@@ -78,12 +83,17 @@ void app_main(void) {
   // elapsed time so the UI can tell "never connected" from "lost it a
   // while ago" instead of collapsing both into the same message.
   int64_t last_success_us = -1;
+  int consecutive_poll_failures = 0;
 
   while (1) {
     usage_snapshot_t snapshot;
     usage_client_poll(&snapshot);
     if (snapshot.ok) {
       last_success_us = esp_timer_get_time();
+      consecutive_poll_failures = 0;
+    } else if (++consecutive_poll_failures >= POLL_FAILURES_BEFORE_RESELECT) {
+      wifi_request_reselect();
+      consecutive_poll_failures = 0;
     }
 
     if (has_battery) {

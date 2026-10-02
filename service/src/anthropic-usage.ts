@@ -29,6 +29,10 @@ export type AuthoritativeUsageResult =
 
 export type UsageFetcher = () => Promise<AuthoritativeUsageResult>;
 
+// A null `resets_at` is deliberately not valid: Anthropic reports
+// `{ utilization: 0, resets_at: null }` (and `is_active: false` in the
+// `limits` list) while no window is open - observed in ~/.claude.json - so
+// there is no window to describe, and the reading is treated as absent.
 function isValidWindowUsage(
   value: unknown,
 ): value is { utilization: number; resets_at: string } {
@@ -41,17 +45,21 @@ function isValidWindowUsage(
   );
 }
 
-function parseWindows(utilization: Record<string, unknown>): AuthoritativeUsage {
-  const fiveHourRaw = utilization.five_hour;
-  const sevenDayRaw = utilization.seven_day;
+// `liveAt` (epoch ms), when given, also drops a window that had already ended
+// by then: its percentage describes a finished window, not the current one.
+function parseWindow(raw: unknown, liveAt?: number): WindowUsage | null {
+  if (!isValidWindowUsage(raw)) return null;
+  if (liveAt !== undefined && Date.parse(raw.resets_at) <= liveAt) return null;
+  return { utilization: raw.utilization, resetsAt: raw.resets_at };
+}
 
+function parseWindows(
+  utilization: Record<string, unknown>,
+  liveAt?: number,
+): AuthoritativeUsage {
   return {
-    fiveHour: isValidWindowUsage(fiveHourRaw)
-      ? { utilization: fiveHourRaw.utilization, resetsAt: fiveHourRaw.resets_at }
-      : null,
-    sevenDay: isValidWindowUsage(sevenDayRaw)
-      ? { utilization: sevenDayRaw.utilization, resetsAt: sevenDayRaw.resets_at }
-      : null,
+    fiveHour: parseWindow(utilization.five_hour, liveAt),
+    sevenDay: parseWindow(utilization.seven_day, liveAt),
   };
 }
 
@@ -130,7 +138,12 @@ export async function readCachedUsage(
     return { ok: false, error: "local usage cache is missing utilization data" };
   }
 
-  return { ok: true, usage: parseWindows(utilization as Record<string, unknown>) };
+  // The cache can be up to CACHE_STALE_MS old, so a window it recorded as open
+  // may have ended since - only windows still open now are trusted.
+  return {
+    ok: true,
+    usage: parseWindows(utilization as Record<string, unknown>, now()),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +342,16 @@ export function createUsageSource(
 
   return async () => {
     const cached = await readCache();
-    if (cached.ok) return cached;
-    return fetchNetwork();
+    // The session window is the one that moves minute to minute, and the
+    // cache can be up to an hour old: with no live session window in it
+    // (none was open when it was written, or that one has since ended) it
+    // can't say what's true now, so ask the live API instead of dropping
+    // straight to the local estimate.
+    if (cached.ok && cached.usage.fiveHour) return cached;
+
+    const live = await fetchNetwork();
+    // If the API is unreachable too, a cache that still has a live weekly
+    // window is better than nothing.
+    return live.ok || !cached.ok ? live : cached;
   };
 }
