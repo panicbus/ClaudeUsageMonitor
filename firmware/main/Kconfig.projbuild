@@ -1,5 +1,9 @@
 menu "Claude Usage Monitor Configuration"
 
+# Don't set real values via menuconfig - put them in
+# firmware/sdkconfig.defaults.local (gitignored). Start from
+# firmware/sdkconfig.defaults.local.example.
+
 config WIFI_SSID
     string "WiFi SSID"
     default ""

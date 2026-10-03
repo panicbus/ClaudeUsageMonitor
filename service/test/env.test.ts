@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseOptionalPositiveNumber, parseRequiredPositiveInt } from "../src/env.js";
+import {
+  parseFlag,
+  parseOptionalPositiveNumber,
+  parseRequiredPositiveInt,
+} from "../src/env.js";
 
 describe("parseOptionalPositiveNumber", () => {
   it("returns null when unset", () => {
@@ -34,21 +38,38 @@ describe("parseRequiredPositiveInt", () => {
   });
 
   it("throws a descriptive error for non-numeric input", () => {
-    expect(() => parseRequiredPositiveInt("PORT", "nope", 4317)).toThrow(
-      /PORT/,
-    );
+    expect(() => parseRequiredPositiveInt("PORT", "nope", 4317)).toThrow(/PORT/);
   });
 
   it("throws a descriptive error for zero or negative input", () => {
     expect(() => parseRequiredPositiveInt("POLL_INTERVAL_MS", "0", 15000)).toThrow(
       /POLL_INTERVAL_MS/,
     );
-    expect(() =>
-      parseRequiredPositiveInt("POLL_INTERVAL_MS", "-1", 15000),
-    ).toThrow(/POLL_INTERVAL_MS/);
+    expect(() => parseRequiredPositiveInt("POLL_INTERVAL_MS", "-1", 15000)).toThrow(
+      /POLL_INTERVAL_MS/,
+    );
   });
 
   it("throws for a blank/whitespace value", () => {
     expect(() => parseRequiredPositiveInt("PORT", "   ", 4317)).toThrow();
+  });
+});
+
+describe("parseFlag", () => {
+  it("is off when unset or blank", () => {
+    expect(parseFlag("X", undefined)).toBe(false);
+    expect(parseFlag("X", "")).toBe(false);
+  });
+
+  it("accepts 1/true and 0/false, case-insensitively", () => {
+    expect(parseFlag("X", "1")).toBe(true);
+    expect(parseFlag("X", "TRUE")).toBe(true);
+    expect(parseFlag("X", "0")).toBe(false);
+    expect(parseFlag("X", "false")).toBe(false);
+  });
+
+  it("throws on anything else rather than silently staying off", () => {
+    expect(() => parseFlag("X", "ture")).toThrow(/X must be/);
+    expect(() => parseFlag("X", "yes")).toThrow(/X must be/);
   });
 });

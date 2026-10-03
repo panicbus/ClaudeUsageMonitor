@@ -180,7 +180,10 @@ describe("fetchAuthoritativeUsage", () => {
   it("fails gracefully on malformed JSON", async () => {
     const fetchImpl = vi.fn(
       async () =>
-        new Response("not json", { status: 200, headers: { "content-type": "text/plain" } }),
+        new Response("not json", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
     );
 
     const result = await fetchAuthoritativeUsage("test-token", fetchImpl);
@@ -324,7 +327,10 @@ describe("readCachedUsage", () => {
       seven_day: { utilization: 42, resets_at: SEVEN_DAY_RESET },
     });
 
-    const result = await readCachedUsage({ readFile: async () => file, now: () => NOW_MS });
+    const result = await readCachedUsage({
+      readFile: async () => file,
+      now: () => NOW_MS,
+    });
 
     expect(result).toEqual({
       ok: true,
@@ -338,7 +344,10 @@ describe("readCachedUsage", () => {
       seven_day: { utilization: 42, resets_at: SEVEN_DAY_RESET },
     });
 
-    const result = await readCachedUsage({ readFile: async () => file, now: () => NOW_MS });
+    const result = await readCachedUsage({
+      readFile: async () => file,
+      now: () => NOW_MS,
+    });
 
     expect(result).toEqual({
       ok: true,
@@ -359,7 +368,10 @@ describe("readCachedUsage", () => {
       },
     });
 
-    const result = await readCachedUsage({ readFile: async () => staleFile, now: () => NOW_MS });
+    const result = await readCachedUsage({
+      readFile: async () => staleFile,
+      now: () => NOW_MS,
+    });
 
     expect(result.ok).toBe(false);
   });
@@ -514,5 +526,27 @@ describe("createUsageSource", () => {
 
       expect(result).toEqual(weekOnlyCache);
     });
+
+    it("returns the cache as-is, without any network call, when the network tier is disabled", async () => {
+      const getUsage = createUsageSource({
+        readCache: async () => weekOnlyCache,
+        fetchNetwork: null,
+      });
+
+      const result = await getUsage();
+
+      expect(result).toEqual(weekOnlyCache);
+    });
+  });
+
+  it("returns the cache's failure when it fails and the network tier is disabled", async () => {
+    const getUsage = createUsageSource({
+      readCache: async () => failResult,
+      fetchNetwork: null,
+    });
+
+    const result = await getUsage();
+
+    expect(result).toEqual(failResult);
   });
 });

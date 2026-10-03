@@ -1,0 +1,21 @@
+# systemd user unit: runs the usage service at login and restarts it if it
+# dies. Replace __REPO__ and __NODE_BIN__ (`dirname $(which npx)`), copy to
+# ~/.config/systemd/user/, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now claude-usage-monitor
+#   journalctl --user -u claude-usage-monitor -f
+# To keep it running while you're logged out: loginctl enable-linger $USER
+
+[Unit]
+Description=Claude usage monitor service
+After=network-online.target
+
+[Service]
+WorkingDirectory=__REPO__/service
+Environment=PATH=__NODE_BIN__:/usr/bin:/bin
+ExecStart=__NODE_BIN__/npx tsx --env-file-if-exists=.env src/index.ts
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

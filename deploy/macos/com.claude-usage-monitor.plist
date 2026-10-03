@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent: runs the usage service at login and restarts it if it dies.
+  Replace __REPO__ (absolute path to this repo), __NODE_BIN__ (the directory
+  holding the node/npx you ran `npm install` with - `dirname $(which npx)`),
+  and __HOME__, then see the README's "Run the service at login" section.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.claude-usage-monitor</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE_BIN__/npx</string>
+    <string>tsx</string>
+    <string>--env-file-if-exists=.env</string>
+    <string>src/index.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO__/service</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__NODE_BIN__:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/claude-usage-monitor.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/claude-usage-monitor.err.log</string>
+</dict>
+</plist>

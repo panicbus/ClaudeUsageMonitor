@@ -1,0 +1,23 @@
+# Copy to firmware/sdkconfig.defaults.local (gitignored - it holds WiFi
+# passwords, never commit it), fill in, then:  rm -f sdkconfig && idf.py build
+#
+# WiFi must be 2.4 GHz - the ESP32-S3 can't see 5 GHz networks. For an iPhone
+# hotspot, turn on Settings > Personal Hotspot > Maximize Compatibility.
+# SSIDs match byte-for-byte: iPhone names use a curly apostrophe (’), so
+# "Alex’s iPhone" typed with a straight ' will never be found.
+
+# Primary network (required).
+CONFIG_WIFI_SSID=""
+CONFIG_WIFI_PASSWORD=""
+
+# Fallback networks, e.g. a phone hotspot (optional - leave blank to disable).
+# Tried in order when a higher-priority network is out of range or failing.
+CONFIG_WIFI_SSID_2=""
+CONFIG_WIFI_PASSWORD_2=""
+CONFIG_WIFI_SSID_3=""
+CONFIG_WIFI_PASSWORD_3=""
+
+# The service's /usage URL. Use your computer's .local hostname, not an IP
+# (IPs change). macOS: `scutil --get LocalHostName` -> http://<that>.local:4317/usage
+# Linux: `hostname` (needs avahi-daemon running) -> http://<that>.local:4317/usage
+CONFIG_USAGE_SERVICE_URL="http://your-computer.local:4317/usage"

@@ -1,12 +1,12 @@
 import type { UsageResponse } from "@claude-usage-monitor/shared";
-import { createUsageSource } from "./anthropic-usage.js";
+import { createAuthoritativeUsageFetcher, createUsageSource } from "./anthropic-usage.js";
 import {
   createActiveBlockRunner,
   createAllBlocksRunner,
   createAllWeeklyRunner,
   createWeeklyRunner,
 } from "./ccusage.js";
-import { parseOptionalDate, parseRequiredPositiveInt } from "./env.js";
+import { parseFlag, parseOptionalDate, parseRequiredPositiveInt } from "./env.js";
 import { readTokenLimits } from "./limits.js";
 import { startPolling } from "./poller.js";
 import { createUsageServer } from "./server.js";
@@ -27,7 +27,13 @@ const runWeekly = createWeeklyRunner();
 const runAllBlocks = createAllBlocksRunner();
 const runAllWeekly = createAllWeeklyRunner();
 const refineSessionStart = createFirstEntryTimeCache();
-const getAuthoritativeUsage = createUsageSource();
+const useOAuthUsageApi = parseFlag(
+  "USE_OAUTH_USAGE_API",
+  process.env.USE_OAUTH_USAGE_API,
+);
+const getAuthoritativeUsage = createUsageSource({
+  fetchNetwork: useOAuthUsageApi ? createAuthoritativeUsageFetcher() : null,
+});
 
 async function buildSnapshot(): Promise<UsageResponse> {
   return buildUsageResponse({
@@ -58,7 +64,9 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`claude-usage-monitor service listening on 0.0.0.0:${PORT}`);
   console.log(`polling ccusage every ${POLL_INTERVAL_MS}ms`);
   console.log(
-    "authoritative usage: local cache (~/.claude.json) first, OAuth API fallback, then estimate",
+    useOAuthUsageApi
+      ? "authoritative usage: local cache (~/.claude.json) first, OAuth API fallback, then estimate"
+      : "authoritative usage: local cache (~/.claude.json), then estimate (USE_OAUTH_USAGE_API not set)",
   );
   if (limits.sessionCostLimit !== null) {
     console.log(`session limit: $${limits.sessionCostLimit} (cost-based)`);
@@ -75,9 +83,7 @@ server.listen(PORT, "0.0.0.0", () => {
       : "WEEKLY_RESET_ANCHOR not set — weekly window falls back to the UTC calendar week",
   );
   if (limits.weeklyTokenLimit === null) {
-    console.log(
-      "WEEKLY_TOKEN_LIMIT not set — self-calibrating from historical max week",
-    );
+    console.log("WEEKLY_TOKEN_LIMIT not set — self-calibrating from historical max week");
   }
 });
 

@@ -1,9 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { claudeConfigDir } from "./claude-paths.js";
 
 export function defaultProjectsDir(): string {
-  return join(homedir(), ".claude", "projects");
+  return join(claudeConfigDir(), "projects");
 }
 
 async function collectJsonlFiles(dir: string): Promise<string[]> {

@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { readFile as readFileAsync } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { claudeConfigDir, claudeJsonPath } from "./claude-paths.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,8 +24,7 @@ export interface AuthoritativeUsage {
 }
 
 export type AuthoritativeUsageResult =
-  | { ok: true; usage: AuthoritativeUsage }
-  | { ok: false; error: string };
+  { ok: true; usage: AuthoritativeUsage } | { ok: false; error: string };
 
 export type UsageFetcher = () => Promise<AuthoritativeUsageResult>;
 
@@ -73,7 +72,7 @@ function parseWindows(
 const CACHE_STALE_MS = 60 * 60 * 1000;
 
 function defaultReadClaudeJson(): Promise<string> {
-  return readFileAsync(join(homedir(), ".claude.json"), "utf-8");
+  return readFileAsync(claudeJsonPath(), "utf-8");
 }
 
 export interface ReadCachedUsageDeps {
@@ -175,6 +174,8 @@ function parseClaudeAiOauthJson(raw: string): OAuthToken | null {
 }
 
 async function defaultReadKeychain(): Promise<string> {
+  // The Keychain only exists on macOS; elsewhere go straight to the file.
+  if (process.platform !== "darwin") throw new Error("no keychain on this platform");
   const { stdout } = await execFileAsync("security", [
     "find-generic-password",
     "-s",
@@ -185,7 +186,7 @@ async function defaultReadKeychain(): Promise<string> {
 }
 
 function defaultReadCredentialsFile(): Promise<string> {
-  return readFileAsync(join(homedir(), ".claude", ".credentials.json"), "utf-8");
+  return readFileAsync(join(claudeConfigDir(), ".credentials.json"), "utf-8");
 }
 
 export interface ReadOAuthTokenDeps {
@@ -331,14 +332,18 @@ export function createAuthoritativeUsageFetcher(
 
 export interface CreateUsageSourceOptions {
   readCache?: () => Promise<AuthoritativeUsageResult>;
-  fetchNetwork?: UsageFetcher;
+  // null disables the network tier entirely, so only the local cache is
+  // consulted. Off unless USE_OAUTH_USAGE_API is set (see index.ts):
+  // Anthropic's terms restrict using Claude Code's OAuth token outside
+  // Claude Code itself, so each user has to opt in to it knowingly.
+  fetchNetwork?: UsageFetcher | null;
 }
 
-export function createUsageSource(
-  options: CreateUsageSourceOptions = {},
-): UsageFetcher {
-  const { readCache = () => readCachedUsage(), fetchNetwork = createAuthoritativeUsageFetcher() } =
-    options;
+export function createUsageSource(options: CreateUsageSourceOptions = {}): UsageFetcher {
+  const {
+    readCache = () => readCachedUsage(),
+    fetchNetwork = createAuthoritativeUsageFetcher(),
+  } = options;
 
   return async () => {
     const cached = await readCache();
@@ -348,6 +353,7 @@ export function createUsageSource(
     // can't say what's true now, so ask the live API instead of dropping
     // straight to the local estimate.
     if (cached.ok && cached.usage.fiveHour) return cached;
+    if (fetchNetwork === null) return cached;
 
     const live = await fetchNetwork();
     // If the API is unreachable too, a cache that still has a live weekly

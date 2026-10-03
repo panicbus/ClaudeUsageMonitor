@@ -6,6 +6,17 @@
     "shared"
   ],
   "scripts": {
-    "test": "npm test --workspace=service"
+    "start": "npm run dev --workspace=service",
+    "test": "npm test --workspace=service",
+    "typecheck": "tsc --noEmit -p service/tsconfig.json",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9"
+  },
+  "lint-staged": {
+    "*.ts": "prettier --write"
   }
 }

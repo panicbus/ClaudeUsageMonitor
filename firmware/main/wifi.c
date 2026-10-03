@@ -102,7 +102,7 @@ static void schedule_reconnect(const char *reason) {
 // hotspot that's never found is a phone-side problem, not a scan problem: it
 // must be on 2.4 GHz ("Maximize Compatibility" on - this radio can't see
 // 5 GHz), and the configured SSID must match byte-for-byte, including iOS's
-// curly apostrophe in names like "Nico’s iPhone".
+// curly apostrophe in names like "Alex’s iPhone".
 // A scan that finds nothing dwells on every channel and takes ~2.5s (measured
 // on the device), so this only ever runs on s_reconnect_task, never on the
 // event-loop task or inside an esp_timer callback.
