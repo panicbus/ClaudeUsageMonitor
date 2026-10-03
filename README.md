@@ -2,23 +2,7 @@
 
 A small AMOLED desk display that shows your **Claude Code usage limits** at a glance: how much of the current 5-hour session and of your weekly limit you've used, and when each one resets. It updates about every 15 seconds.
 
-<!-- Add a photo of the device: docs/device.jpg -->
-
-```
- ┌──────────────────────────┐
- │ [robot]  Usage           │
- │                          │
- │ Current           42%    │
- │ ████████░░░░░░░░░░░░░░   │
- │ Resets in 2h 13m         │
- │                          │
- │ Weekly            24%    │
- │ █████░░░░░░░░░░░░░░░░░   │
- │ Resets in 3d 4h          │
- │                          │
- │ * connected              │
- └──────────────────────────┘
-```
+<p align="center"><img src="docs/claude-usage-monitor.png" width="420" alt="The device on a desk: the Usage screen showing Current 39% (resets in 4h 11m) and Weekly 44% (resets in 2d 18h), status connected"></p>
 
 It has two parts:
 
