@@ -1,6 +1,9 @@
 {
   "name": "claude-usage-monitor",
   "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
   "workspaces": [
     "service",
     "shared"
