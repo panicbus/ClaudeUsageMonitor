@@ -2,10 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  createFirstEntryTimeCache,
-  findFirstEntryTime,
-} from "../src/transcripts.js";
+import { createFirstEntryTimeCache, findFirstEntryTime } from "../src/transcripts.js";
 
 const WINDOW_START = new Date("2026-09-16T00:00:00.000Z");
 const WINDOW_END = new Date("2026-09-16T05:00:00.000Z");

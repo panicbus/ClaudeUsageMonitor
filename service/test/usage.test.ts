@@ -55,11 +55,17 @@ describe("buildUsageResponse", () => {
       runAllBlocks: fixedRunner({
         blocks: [{ isActive: false, totalTokens: 999999999, costUSD: 500 }],
       }),
-      runAllWeekly: fixedRunner({ weekly: [{ period: "2026-01-01", totalTokens: 999999999 }] }),
+      runAllWeekly: fixedRunner({
+        weekly: [{ period: "2026-01-01", totalTokens: 999999999 }],
+      }),
       weeklyResetAnchor: null,
       refineSessionStart: null,
       getAuthoritativeUsage: null,
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 
@@ -101,7 +107,11 @@ describe("buildUsageResponse", () => {
       weeklyResetAnchor: null,
       refineSessionStart: null,
       getAuthoritativeUsage: null,
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: 36.0 },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: 36.0,
+      },
       now: () => NOW,
     });
 
@@ -141,7 +151,11 @@ describe("buildUsageResponse", () => {
       weeklyResetAnchor: null,
       refineSessionStart: async () => new Date("2026-09-13T06:41:00.000Z"),
       getAuthoritativeUsage: null,
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 
@@ -160,7 +174,11 @@ describe("buildUsageResponse", () => {
       weeklyResetAnchor: null,
       refineSessionStart: async () => null,
       getAuthoritativeUsage: null,
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 
@@ -347,7 +365,11 @@ describe("buildUsageResponse", () => {
           sevenDay: { utilization: 42, resetsAt: "2026-09-19T18:00:00.000Z" },
         },
       }),
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 
@@ -389,7 +411,11 @@ describe("buildUsageResponse", () => {
           sevenDay: null, // e.g. cache had this window but not the other
         },
       }),
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 
@@ -407,8 +433,15 @@ describe("buildUsageResponse", () => {
       runAllWeekly: noHistory,
       weeklyResetAnchor: null,
       refineSessionStart: null,
-      getAuthoritativeUsage: async () => ({ ok: false, error: "no oauth token available" }),
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      getAuthoritativeUsage: async () => ({
+        ok: false,
+        error: "no oauth token available",
+      }),
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 
@@ -436,7 +469,11 @@ describe("buildUsageResponse", () => {
           sevenDay: null,
         },
       }),
-      limits: { sessionTokenLimit: 500000, weeklyTokenLimit: 7000000, sessionCostLimit: null },
+      limits: {
+        sessionTokenLimit: 500000,
+        weeklyTokenLimit: 7000000,
+        sessionCostLimit: null,
+      },
       now: () => NOW,
     });
 

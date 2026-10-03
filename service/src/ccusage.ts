@@ -38,8 +38,7 @@ export interface SessionBlock {
 }
 
 export type SessionBlockResult =
-  | { ok: true; block: SessionBlock | null }
-  | { ok: false; error: string };
+  { ok: true; block: SessionBlock | null } | { ok: false; error: string };
 
 export interface WeeklyTotal {
   tokensUsed: number;
@@ -48,18 +47,15 @@ export interface WeeklyTotal {
 }
 
 export type WeeklyTotalResult =
-  | { ok: true; week: WeeklyTotal | null }
-  | { ok: false; error: string };
+  { ok: true; week: WeeklyTotal | null } | { ok: false; error: string };
 
 export type CcusageRunner = () => Promise<string>;
 
 function createRunner(scriptPath: string, args: string[]): CcusageRunner {
   return async () => {
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      [scriptPath, ...args],
-      { timeout: EXEC_TIMEOUT_MS },
-    );
+    const { stdout } = await execFileAsync(process.execPath, [scriptPath, ...args], {
+      timeout: EXEC_TIMEOUT_MS,
+    });
     return stdout;
   };
 }
@@ -70,9 +66,7 @@ export function createActiveBlockRunner(
   return createRunner(scriptPath, ["blocks", "--active", "--json", "--offline"]);
 }
 
-export function createWeeklyRunner(
-  scriptPath = resolveCcusageBinPath(),
-): CcusageRunner {
+export function createWeeklyRunner(scriptPath = resolveCcusageBinPath()): CcusageRunner {
   return createRunner(scriptPath, [
     "weekly",
     "--json",
@@ -93,13 +87,7 @@ export function createAllBlocksRunner(
 export function createAllWeeklyRunner(
   scriptPath = resolveCcusageBinPath(),
 ): CcusageRunner {
-  return createRunner(scriptPath, [
-    "weekly",
-    "--json",
-    "--offline",
-    "--timezone",
-    "UTC",
-  ]);
+  return createRunner(scriptPath, ["weekly", "--json", "--offline", "--timezone", "UTC"]);
 }
 
 type JsonResult = { ok: true; data: unknown } | { ok: false; error: string };
@@ -316,8 +304,7 @@ export type HistoricalMaxBlockResult =
   | { ok: false; error: string };
 
 export type HistoricalMaxResult =
-  | { ok: true; maxTokens: number | null }
-  | { ok: false; error: string };
+  { ok: true; maxTokens: number | null } | { ok: false; error: string };
 
 // The self-calibrating fallback baseline when no explicit limit is
 // configured (Anthropic doesn't publish real plan quotas): the highest

@@ -113,15 +113,13 @@ export async function buildUsageResponse(
   const authoritativeSevenDay = authoritative.ok ? authoritative.usage.sevenDay : null;
 
   const sessionTokenLimit =
-    limits.sessionTokenLimit ??
-    (maxBlockResult.ok ? maxBlockResult.maxTokens : null);
+    limits.sessionTokenLimit ?? (maxBlockResult.ok ? maxBlockResult.maxTokens : null);
   const sessionCostLimit =
     limits.sessionCostLimit ?? (maxBlockResult.ok ? maxBlockResult.maxCost : null);
   const weeklyTokenLimit =
-    limits.weeklyTokenLimit ??
-    (maxWeeklyResult.ok ? maxWeeklyResult.maxTokens : null);
+    limits.weeklyTokenLimit ?? (maxWeeklyResult.ok ? maxWeeklyResult.maxTokens : null);
 
-  const sessionTokensUsed = sessionResult.ok ? sessionResult.block?.tokensUsed ?? 0 : 0;
+  const sessionTokensUsed = sessionResult.ok ? (sessionResult.block?.tokensUsed ?? 0) : 0;
 
   let session = null;
   if (authoritativeFiveHour) {
@@ -170,7 +168,7 @@ export async function buildUsageResponse(
 
   let week = null;
   if (authoritativeSevenDay) {
-    const weekTokensUsed = weeklyResult.ok ? weeklyResult.week?.tokensUsed ?? 0 : 0;
+    const weekTokensUsed = weeklyResult.ok ? (weeklyResult.week?.tokensUsed ?? 0) : 0;
     week = buildAuthoritativeWindow({
       tokensUsed: weekTokensUsed,
       utilization: authoritativeSevenDay.utilization,
