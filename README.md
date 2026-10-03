@@ -88,8 +88,8 @@ Expect about an hour. Most of it is the one-time ESP-IDF install.
 ### 1. Run the service
 
 ```bash
-git clone https://github.com/panicbus/claude-usage-monitor.git
-cd claude-usage-monitor
+git clone https://github.com/panicbus/ClaudeUsageMonitor.git
+cd ClaudeUsageMonitor
 npm install
 npm start
 ```
