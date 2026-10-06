@@ -39,10 +39,10 @@ It has two parts:
 ```
  Your computer                                         Desk device
  ┌──────────────────────────────────────────┐          ┌──────────────────┐
- │ Claude Code ──writes──► ~/.claude.json    │          │ ESP32-S3 AMOLED  │
- │             ──writes──► ~/.claude/projects│  WiFi    │                  │
- │                              │            │ ◄─────── │ GET /usage       │
- │                    usage service :4317 ───┼────────► │ every 15 s       │
+ │ Claude Code ─writes──► ~/.claude.json    │          │ ESP32-S3 AMOLED  │
+ │             ─writes──► ~/.claude/projects│  WiFi    │                  │
+ │                             │            │ ◄─────── │ GET /usage       │
+ │                   usage service :4317 ───┼────────► │ every 15 s       │
  └──────────────────────────────────────────┘   JSON   └──────────────────┘
 ```
 
@@ -50,9 +50,9 @@ Anthropic doesn't publish an API for "how much of my limit is left", but Claude 
 
 1. **Claude Code's local usage cache** (`~/.claude.json`). This is the exact figure from the `/usage` panel, and it needs no network calls or credentials. Claude Code only refreshes it occasionally, though, so the service ignores it once it's more than an hour old.
 2. **Anthropic's live usage endpoint.** *Off by default.* See [Accuracy, and the optional live API](#accuracy-and-the-optional-live-api).
-3. **A local estimate** built from Claude Code's transcripts using [ccusage](https://github.com/ryoppippi/ccusage). The device shows estimated numbers in grey with a `~` prefix, so you can always tell them apart.
+3. **A local estimate** built from Claude Code's transcripts using [ccusage](https://github.com/ryoppippi/ccusage).
 
-The device finds your computer by its `.local` hostname (mDNS/Bonjour), not by IP address, so it keeps working when your router hands your computer a new IP.
+The device finds your computer by its `.local` hostname, not by IP address.
 
 ---
 
