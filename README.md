@@ -155,7 +155,7 @@ Most setup problems come from these. Claude knows about all of them, but it help
 
 ### Grey `~` numbers, and the optional live API
 
-The device shows exact numbers in white. A grey number with a `~` (for example `~42%`) is a **local estimate**: the exact figure wasn't available. This happens because Claude Code only occasionally refreshes the local usage cache the service reads, sometimes hours apart. Weekly estimates tend to be close; session estimates are rougher.
+The device shows exact numbers in white. A grey number with a `~` (for example `~42%`) is a **local estimate**: the exact figure wasn't available. This happens because Claude Code only occasionally refreshes the local usage cache the service reads, sometimes hours apart. Weekly estimates tend to be close; session estimates are rougher. Estimates also count only Claude Code on this computer, so they miss anything you do in claude.ai, the Claude apps, or on other machines. White numbers come from Anthropic and cover your whole account.
 
 To get exact numbers nearly all the time, you can turn on **`USE_OAUTH_USAGE_API=1`** in `service/.env`. The service then asks Anthropic's **undocumented** usage endpoint, the one Claude Code's own `/usage` panel uses, with the login token Claude Code has already stored on your computer. The token is never logged or sent anywhere else.
 
